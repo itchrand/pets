@@ -11,6 +11,9 @@ import android.support.v7.app.AppCompatActivity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import it.chrand.pets.data.PetContract.PetEntry.Companion.GENDER_FEMALE
+import it.chrand.pets.data.PetContract.PetEntry.Companion.GENDER_MALE
+import it.chrand.pets.data.PetContract.PetEntry.Companion.GENDER_UNKNOWN
 
 
 /**
@@ -34,7 +37,7 @@ class EditorActivity : AppCompatActivity() {
      * Gender of the pet. The possible values are:
      * 0 for unknown gender, 1 for male, 2 for female.
      */
-    private var mGender = 0
+    private var mGender = GENDER_UNKNOWN
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,16 +73,16 @@ class EditorActivity : AppCompatActivity() {
                 val selection = parent.getItemAtPosition(position) as String
                 if (!TextUtils.isEmpty(selection)) {
                     when (selection) {
-                        getString(R.string.gender_male) -> mGender = 1
-                        getString(R.string.gender_female) -> mGender = 2
-                        else -> mGender = 0 //Unknown
+                        getString(R.string.gender_male) -> mGender = GENDER_MALE
+                        getString(R.string.gender_female) -> mGender = GENDER_FEMALE
+                        else -> mGender = GENDER_UNKNOWN
                     }
                 }
             }
 
             // Because AdapterView is an abstract class, onNothingSelected must be defined
             override fun onNothingSelected(parent: AdapterView<*>) {
-                mGender = 0 // Unknown
+                mGender = GENDER_UNKNOWN
             }
         }
     }
