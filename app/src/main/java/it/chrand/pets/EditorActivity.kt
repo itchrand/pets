@@ -1,42 +1,40 @@
 package it.chrand.pets
 
+import android.content.ContentValues
 import android.support.v4.app.NavUtils
-import android.widget.AdapterView
 import android.text.TextUtils
-import android.widget.ArrayAdapter
-import android.widget.Spinner
-import android.widget.EditText
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.*
+import it.chrand.pets.data.PetContract
 import it.chrand.pets.data.PetContract.PetEntry.Companion.GENDER_FEMALE
 import it.chrand.pets.data.PetContract.PetEntry.Companion.GENDER_MALE
 import it.chrand.pets.data.PetContract.PetEntry.Companion.GENDER_UNKNOWN
+import it.chrand.pets.data.PetDbHelper
 
 
 /**
  * Allows user to create a new pet or edit an existing one.
  */
 class EditorActivity : AppCompatActivity() {
+    val LOG_TAG = EditorActivity::class.java.simpleName
 
     /** EditText field to enter the pet's name  */
-    private var mNameEditText: EditText? = null
+    private lateinit var mNameEditText: EditText
 
     /** EditText field to enter the pet's breed  */
-    private var mBreedEditText: EditText? = null
+    private lateinit var mBreedEditText: EditText
 
     /** EditText field to enter the pet's weight  */
-    private var mWeightEditText: EditText? = null
+    private lateinit var mWeightEditText: EditText
 
     /** EditText field to enter the pet's gender  */
-    private var mGenderSpinner: Spinner? = null
+    private lateinit var mGenderSpinner: Spinner
 
-    /**
-     * Gender of the pet. The possible values are:
-     * 0 for unknown gender, 1 for male, 2 for female.
-     */
     private var mGender = GENDER_UNKNOWN
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,10 +63,10 @@ class EditorActivity : AppCompatActivity() {
         genderSpinnerAdapter.setDropDownViewResource(android.R.layout.simple_dropdown_item_1line)
 
         // Apply the adapter to the spinner
-        mGenderSpinner!!.adapter = genderSpinnerAdapter
+        mGenderSpinner.adapter = genderSpinnerAdapter
 
         // Set the integer mSelected to the constant values
-        mGenderSpinner!!.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+        mGenderSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>, view: View, position: Int, id: Long) {
                 val selection = parent.getItemAtPosition(position) as String
                 if (!TextUtils.isEmpty(selection)) {
@@ -98,9 +96,11 @@ class EditorActivity : AppCompatActivity() {
         // User clicked on a menu option in the app bar overflow menu
         when (item.getItemId()) {
         // Respond to a click on the "Save" menu option
-            R.id.action_save ->
-                // Do nothing for now
+            R.id.action_save -> {
+                insertPet()
+                finish()
                 return true
+            }
         // Respond to a click on the "Delete" menu option
             R.id.action_delete ->
                 // Do nothing for now
@@ -113,5 +113,42 @@ class EditorActivity : AppCompatActivity() {
             }
         }
         return super.onOptionsItemSelected(item)
+    }
+
+    private fun insertPet() {
+        val mDbHelper = PetDbHelper(this)
+        val db = mDbHelper.writableDatabase
+
+        // Create a ContentValues object where column names are the keys,
+        // and Toto's pet attributes are the values.
+        val values = ContentValues()
+        values.put(PetContract.PetEntry.COLUMN_PET_NAME, mNameEditText.text.toString().trim())
+        values.put(PetContract.PetEntry.COLUMN_PET_BREED, mBreedEditText.text.toString().trim())
+        values.put(PetContract.PetEntry.COLUMN_PET_GENDER, mGender)
+        values.put(PetContract.PetEntry.COLUMN_PET_WEIGHT, Integer.parseInt(mWeightEditText.text.toString().trim()))
+
+        // Insert a new row for Toto in the database, returning the ID of that new row.
+        // The first argument for db.insert() is the pets table name.
+        // The second argument provides the name of a column in which the framework
+        // can insert NULL in the event that the ContentValues is empty (if
+        // this is set to "null", then the framework will not insert a row when
+        // there are no values).
+        // The third argument is the ContentValues object containing the info for Toto.
+        val newRowId = db.insert(PetContract.PetEntry.TABLE_NAME, null, values)
+
+        if (newRowId.equals(-1))
+          giveAToast("Error with inserting pet")
+        else
+            giveAToast("New pet saved with id " + newRowId)
+
+        Log.v(LOG_TAG,"New row Id " + newRowId)
+    }
+
+    private fun giveAToast(message: String) {
+        val context = applicationContext
+        val duration = Toast.LENGTH_SHORT
+
+        val toast = Toast.makeText(context, message, duration)
+        toast.show()
     }
 }
