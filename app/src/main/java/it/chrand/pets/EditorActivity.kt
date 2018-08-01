@@ -11,11 +11,6 @@ import android.view.MenuItem
 import android.view.View
 import android.widget.*
 import it.chrand.pets.data.PetContract
-import it.chrand.pets.data.PetContract.PetEntry.Companion.GENDER_FEMALE
-import it.chrand.pets.data.PetContract.PetEntry.Companion.GENDER_MALE
-import it.chrand.pets.data.PetContract.PetEntry.Companion.GENDER_UNKNOWN
-import it.chrand.pets.data.PetDbHelper
-
 
 /**
  * Allows user to create a new pet or edit an existing one.
@@ -35,7 +30,7 @@ class EditorActivity : AppCompatActivity() {
     /** EditText field to enter the pet's gender  */
     private lateinit var mGenderSpinner: Spinner
 
-    private var mGender = GENDER_UNKNOWN
+    private var mGender = PetContract.PetEntry.GENDER_UNKNOWN
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,16 +66,16 @@ class EditorActivity : AppCompatActivity() {
                 val selection = parent.getItemAtPosition(position) as String
                 if (!TextUtils.isEmpty(selection)) {
                     when (selection) {
-                        getString(R.string.gender_male) -> mGender = GENDER_MALE
-                        getString(R.string.gender_female) -> mGender = GENDER_FEMALE
-                        else -> mGender = GENDER_UNKNOWN
+                        getString(R.string.gender_male) -> mGender = PetContract.PetEntry.GENDER_MALE
+                        getString(R.string.gender_female) -> mGender = PetContract.PetEntry.GENDER_FEMALE
+                        else -> mGender = PetContract.PetEntry.GENDER_UNKNOWN
                     }
                 }
             }
 
             // Because AdapterView is an abstract class, onNothingSelected must be defined
             override fun onNothingSelected(parent: AdapterView<*>) {
-                mGender = GENDER_UNKNOWN
+                mGender = PetContract.PetEntry.GENDER_UNKNOWN
             }
         }
     }
@@ -116,32 +111,22 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun insertPet() {
-        val mDbHelper = PetDbHelper(this)
-        val db = mDbHelper.writableDatabase
-
         // Create a ContentValues object where column names are the keys,
-        // and Toto's pet attributes are the values.
+        // and pet attributes are the values.
         val values = ContentValues()
         values.put(PetContract.PetEntry.COLUMN_PET_NAME, mNameEditText.text.toString().trim())
         values.put(PetContract.PetEntry.COLUMN_PET_BREED, mBreedEditText.text.toString().trim())
         values.put(PetContract.PetEntry.COLUMN_PET_GENDER, mGender)
         values.put(PetContract.PetEntry.COLUMN_PET_WEIGHT, Integer.parseInt(mWeightEditText.text.toString().trim()))
 
-        // Insert a new row for Toto in the database, returning the ID of that new row.
-        // The first argument for db.insert() is the pets table name.
-        // The second argument provides the name of a column in which the framework
-        // can insert NULL in the event that the ContentValues is empty (if
-        // this is set to "null", then the framework will not insert a row when
-        // there are no values).
-        // The third argument is the ContentValues object containing the info for Toto.
-        val newRowId = db.insert(PetContract.PetEntry.TABLE_NAME, null, values)
+        val newUri = contentResolver.insert(PetContract.PetEntry.CONTENT_URI, values)
 
-        if (newRowId.equals(-1))
-          giveAToast("Error with inserting pet")
+        if (newUri == null)
+            giveAToast(getString(R.string.pet_not_saved))
         else
-            giveAToast("New pet saved with id " + newRowId)
+            giveAToast(getString(R.string.pet_saved))
 
-        Log.v(LOG_TAG,"New row Id " + newRowId)
+        Log.v(LOG_TAG, "New uri with Id " + newUri)
     }
 
     private fun giveAToast(message: String) {

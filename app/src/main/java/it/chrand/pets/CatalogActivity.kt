@@ -9,15 +9,12 @@ import android.view.MenuItem
 import android.view.View
 import android.widget.TextView
 import it.chrand.pets.data.PetContract.PetEntry
-import it.chrand.pets.data.PetDbHelper
 import android.content.ContentValues
 import android.util.Log
-
+import it.chrand.pets.data.PetContract
 
 class CatalogActivity : AppCompatActivity() {
     val LOG_TAG = CatalogActivity::class.java.simpleName
-
-    private lateinit var mDbHelper: PetDbHelper
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,13 +28,10 @@ class CatalogActivity : AppCompatActivity() {
         //        startActivity(intent)
         //    }
         //})
-        fab.setOnClickListener { view ->
+        fab.setOnClickListener { _view ->
             val intent = Intent(this@CatalogActivity, EditorActivity::class.java)
             startActivity(intent)
         }
-        // To access our database, we instantiate our subclass of SQLiteOpenHelper
-        // and pass the context, which is the current activity.
-        mDbHelper = PetDbHelper(this)
     }
 
     override fun onStart() {
@@ -62,9 +56,13 @@ class CatalogActivity : AppCompatActivity() {
                 return true
             }
         // Respond to a click on the "Delete all entries" menu option
-            R.id.action_delete_all_entries ->
-                // Do nothing for now
+            R.id.action_delete_all_entries -> {
+                val deleteCount = contentResolver.delete(PetContract.PetEntry.CONTENT_URI, null, null)
+                Log.v(LOG_TAG, "Deleted pets: " + deleteCount)
+                displayDatabaseInfo()
+
                 return true
+            }
         }
         return super.onOptionsItemSelected(item)
     }
@@ -73,8 +71,6 @@ class CatalogActivity : AppCompatActivity() {
      * Helper method to insert hardcoded pet data into the database. For debugging purposes only.
      */
     private fun insertPet() {
-        val db = mDbHelper.writableDatabase
-
         // Create a ContentValues object where column names are the keys,
         // and Toto's pet attributes are the values.
         val values = ContentValues()
@@ -83,15 +79,9 @@ class CatalogActivity : AppCompatActivity() {
         values.put(PetEntry.COLUMN_PET_GENDER, PetEntry.GENDER_MALE)
         values.put(PetEntry.COLUMN_PET_WEIGHT, 7)
 
-        // Insert a new row for Toto in the database, returning the ID of that new row.
-        // The first argument for db.insert() is the pets table name.
-        // The second argument provides the name of a column in which the framework
-        // can insert NULL in the event that the ContentValues is empty (if
-        // this is set to "null", then the framework will not insert a row when
-        // there are no values).
-        // The third argument is the ContentValues object containing the info for Toto.
-        val newRowId = db.insert(PetEntry.TABLE_NAME, null, values)
-        Log.v(LOG_TAG, "New row Id " + newRowId)
+        val newUri = contentResolver.insert(PetContract.PetEntry.CONTENT_URI, values)
+
+        Log.v(LOG_TAG, "New uri with Id " + newUri)
     }
 
     /**
@@ -99,13 +89,12 @@ class CatalogActivity : AppCompatActivity() {
      * the pets database.
      */
     private fun displayDatabaseInfo() {
-        // Create and/or open a database to read from it
-        val db = mDbHelper.readableDatabase
-
         // Perform this raw SQL query "SELECT * FROM pets"
         // to get a Cursor that contains all rows from the pets table.
         //val cursor = db.rawQuery("SELECT * FROM " + PetEntry.TABLE_NAME, null)
-        val cursor = db.query(PetEntry.TABLE_NAME, null, null, null, null, null, null)
+//        val cursor = db.query(PetEntry.TABLE_NAME, null, null, null, null, null, null)
+
+        val cursor = contentResolver.query(PetEntry.CONTENT_URI, null, null, null, null)
 
         val displayView = findViewById<View>(R.id.text_view_pet) as TextView
 
