@@ -1,20 +1,26 @@
 package it.chrand.pets
 
+import android.annotation.SuppressLint
+import android.app.LoaderManager
+import android.content.*
 import android.support.v7.app.AppCompatActivity
 import android.support.design.widget.FloatingActionButton
 import android.os.Bundle
-import android.content.Intent
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
-import android.widget.TextView
 import it.chrand.pets.data.PetContract.PetEntry
-import android.content.ContentValues
+import android.database.Cursor
 import android.util.Log
+import android.widget.ListView
+import android.widget.Toast
 import it.chrand.pets.data.PetContract
 
-class CatalogActivity : AppCompatActivity() {
-    val LOG_TAG = CatalogActivity::class.java.simpleName
+class CatalogActivity : AppCompatActivity(), LoaderManager.LoaderCallbacks<Cursor> {
+    private val LOG_TAG = CatalogActivity::class.java.simpleName
+    private val PET_LOADER = 0
+
+    lateinit var petAdapter: PetCursorAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,11 +38,49 @@ class CatalogActivity : AppCompatActivity() {
             val intent = Intent(this@CatalogActivity, EditorActivity::class.java)
             startActivity(intent)
         }
+
+        // Prepare the loader. Either re-connect with an existing one,
+        // or start a new one.
+        loaderManager.initLoader(PET_LOADER, null, this)
+
+        val petListView = findViewById<View>(R.id.list_view_pet) as ListView
+
+        // Setup cursor adapter using cursor = null
+        petAdapter = PetCursorAdapter(this, null)
+        // Attach cursor adapter to the ListView
+        petListView.setAdapter(petAdapter)
+        petListView.setOnItemClickListener({ parent, view, position, id ->
+            val intent = Intent(this@CatalogActivity, EditorActivity::class.java)
+            val currentPetUri = ContentUris.withAppendedId(PetContract.PetEntry.CONTENT_URI, id)
+            intent.setData(currentPetUri)
+            startActivity(intent)
+        })
+
+        // Find and set empty view on the ListView, so that it only shows when the list has 0 items.
+        val emptyView = findViewById<View>(R.id.empty_view)
+        petListView.setEmptyView(emptyView)
     }
 
-    override fun onStart() {
-        super.onStart()
-        displayDatabaseInfo()
+    override fun onCreateLoader(id: Int, args: Bundle?): Loader<Cursor> {
+        // Now create and return a CursorLoader that will take care of
+        // creating a Cursor for the data being displayed.
+        return CursorLoader(this, PetContract.PetEntry.CONTENT_URI,
+                null, null, null, null)
+    }
+
+    // Called when a previously created loader has finished loading
+    override fun onLoadFinished(loader: Loader<Cursor>, data: Cursor) {
+        // Swap the new cursor in. (The framework will take care of closing the
+        // old cursor once we return.)
+        petAdapter.swapCursor(data)
+    }
+
+    // Called when a previously created loader is reset, making the data unavailable
+    override fun onLoaderReset(loader: Loader<Cursor>) {
+        // This is called when the last Cursor provided to onLoadFinished()
+        // above is about to be closed. We need to make sure we are no
+        // longer using it.
+        petAdapter.swapCursor(null)
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -46,21 +90,24 @@ class CatalogActivity : AppCompatActivity() {
         return true
     }
 
+    @SuppressLint("StringFormatInvalid")
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         // User clicked on a menu option in the app bar overflow menu
         when (item.getItemId()) {
         // Respond to a click on the "Insert dummy data" menu option
             R.id.action_insert_dummy_data -> {
                 insertPet()
-                displayDatabaseInfo()
                 return true
             }
         // Respond to a click on the "Delete all entries" menu option
             R.id.action_delete_all_entries -> {
                 val deleteCount = contentResolver.delete(PetContract.PetEntry.CONTENT_URI, null, null)
-                Log.v(LOG_TAG, "Deleted pets: " + deleteCount)
-                displayDatabaseInfo()
+                if (deleteCount == 0)
+                    giveAToast(getString(R.string.pet_not_deleted))
+                else
+                    giveAToast(getString(R.string.pet_deleted, deleteCount))
 
+                Log.v(LOG_TAG, "Deleted pets: " + deleteCount)
                 return true
             }
         }
@@ -84,59 +131,12 @@ class CatalogActivity : AppCompatActivity() {
         Log.v(LOG_TAG, "New uri with Id " + newUri)
     }
 
-    /**
-     * Temporary helper method to display information in the onscreen TextView about the state of
-     * the pets database.
-     */
-    private fun displayDatabaseInfo() {
-        // Perform this raw SQL query "SELECT * FROM pets"
-        // to get a Cursor that contains all rows from the pets table.
-        //val cursor = db.rawQuery("SELECT * FROM " + PetEntry.TABLE_NAME, null)
-//        val cursor = db.query(PetEntry.TABLE_NAME, null, null, null, null, null, null)
+    private fun giveAToast(message: String) {
+        val context = applicationContext
+        val duration = Toast.LENGTH_SHORT
 
-        val cursor = contentResolver.query(PetEntry.CONTENT_URI, null, null, null, null)
-
-        val displayView = findViewById<View>(R.id.text_view_pet) as TextView
-
-        try {
-            // Create a header in the Text View that looks like this:
-            //
-            // The pets table contains <number of rows in Cursor> pets.
-            // _id - name - breed - gender - weight
-            //
-            // In the while loop below, iterate through the rows of the cursor and display
-            // the information from each column in this order.
-            displayView.setText("The pets table contains " + cursor.getCount() + " pets.\n\n")
-            displayView.append(PetEntry._ID + " - " +
-                    PetEntry.COLUMN_PET_NAME + " - " +
-                    PetEntry.COLUMN_PET_BREED + " - " +
-                    PetEntry.COLUMN_PET_GENDER + " - " +
-                    PetEntry.COLUMN_PET_WEIGHT + "\n")
-
-            // Figure out the index of each column
-            val idColumnIndex = cursor.getColumnIndex(PetEntry._ID)
-            val nameColumnIndex = cursor.getColumnIndex(PetEntry.COLUMN_PET_NAME)
-            val breedColumnIndex = cursor.getColumnIndex(PetEntry.COLUMN_PET_BREED)
-            val genderColumnIndex = cursor.getColumnIndex(PetEntry.COLUMN_PET_GENDER)
-            val weightColumnIndex = cursor.getColumnIndex(PetEntry.COLUMN_PET_WEIGHT)
-
-            // Iterate through all the returned rows in the cursor
-            while (cursor.moveToNext()) {
-                // Use that index to extract the String or Int value of the word
-                // at the current row the cursor is on.
-                val currentID = cursor.getInt(idColumnIndex)
-                val currentName = cursor.getString(nameColumnIndex)
-                val currentBreed = cursor.getString(breedColumnIndex)
-                val currentGender = cursor.getString(genderColumnIndex)
-                val currentWeight = cursor.getInt(weightColumnIndex)
-                // Display the values from each column of the current row in the cursor in the TextView
-                displayView.append(("\n" + currentID + " - " +
-                        currentName + " - " + currentBreed + " - " + currentGender + " - " + currentWeight))
-            }
-        } finally {
-            // Always close the cursor when you're done reading from it. This releases all its
-            // resources and makes it invalid.
-            cursor.close()
-        }
+        val toast = Toast.makeText(context, message, duration)
+        toast.show()
     }
+
 }

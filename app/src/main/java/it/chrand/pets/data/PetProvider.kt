@@ -69,6 +69,10 @@ class PetProvider : ContentProvider() {
                 cursor = database.query(PetContract.PetEntry.TABLE_NAME, projection, selection, selectionArgs, null, null, sortOrder)
             }
         }
+
+        if (cursor != null)
+            cursor.setNotificationUri(getContext().getContentResolver(), uri)
+
         return cursor
     }
 
@@ -84,17 +88,21 @@ class PetProvider : ContentProvider() {
         when (sUriMatcher.match(uri)) {
             PETS -> {
                 val newRowId = database.insert(PetContract.PetEntry.TABLE_NAME, null, contentValues)
-                if (!newRowId.equals(-1))
+                if (newRowId > -1)
                     newUri = Uri.withAppendedPath(PetContract.PetEntry.CONTENT_URI, PetContract.PATH_PETS + "/$newRowId")
             }
         }
+
+        if (newUri != null)
+            getContext().getContentResolver().notifyChange(uri, null)
+
         return newUri
     }
 
     /**
      * Updates the data at the given selection and selection arguments, with the new ContentValues.
      */
-    override fun update(uri: Uri, contentValues: ContentValues, whereClause: String, whereClauseArgs: Array<String>): Int {
+    override fun update(uri: Uri, contentValues: ContentValues, whereClause: String?, whereClauseArgs: Array<String>?): Int {
         sanityCheckValues(contentValues, mustCheck = false)
 
         val database = mDbHelper.writableDatabase
@@ -110,7 +118,50 @@ class PetProvider : ContentProvider() {
                 updateCount = database.update(PetContract.PetEntry.TABLE_NAME, contentValues, whereClause, whereClauseArgs)
             }
         }
+
+        if (updateCount != 0)
+            getContext().getContentResolver().notifyChange(uri, null)
+
         return updateCount
+    }
+
+    /**
+     * Delete the data at the given selection and selection arguments.
+     */
+    override fun delete(uri: Uri, whereClause: String?, whereClauseArgs: Array<String>?): Int {
+
+        val database = mDbHelper.writableDatabase
+        var deleteCount = 0
+
+        when (sUriMatcher.match(uri)) {
+            PETS -> {
+                deleteCount = database.delete(PetContract.PetEntry.TABLE_NAME, whereClause, whereClauseArgs)
+            }
+            PET_ID -> {
+                val whereClause = PetContract.PetEntry._ID + "=?"
+                val whereClauseArgs = arrayOf(ContentUris.parseId(uri).toString())
+                deleteCount = database.delete(PetContract.PetEntry.TABLE_NAME, whereClause, whereClauseArgs)
+            }
+        }
+
+        if (deleteCount != 0)
+            getContext().getContentResolver().notifyChange(uri, null)
+
+        return deleteCount
+    }
+
+    /**
+     * Returns the MIME type of data for the content URI.
+     */
+    override fun getType(uri: Uri): String? {
+        when (sUriMatcher.match(uri)) {
+            PETS ->
+                return PetEntry.CONTENT_LIST_TYPE
+            PET_ID ->
+                return PetEntry.CONTENT_ITEM_TYPE
+            else ->
+                throw IllegalStateException("Unknown URI $uri with match")
+        }
     }
 
     private fun sanityCheckValues(contentValues: ContentValues, mustCheck: Boolean = true) {
@@ -131,43 +182,6 @@ class PetProvider : ContentProvider() {
             val weight = contentValues.getAsInteger(PetEntry.COLUMN_PET_WEIGHT)
             if (weight != null && weight < 0)
                 throw IllegalArgumentException("Pet requires valid weight")
-        }
-    }
-
-
-    /**
-     * Delete the data at the given selection and selection arguments.
-     */
-    override fun delete(uri: Uri, whereClause: String?, whereClauseArgs: Array<String>?): Int {
-
-        val database = mDbHelper.writableDatabase
-        var deleteCount = 0
-
-        when (sUriMatcher.match(uri)) {
-            PETS -> {
-                deleteCount = database.delete(PetContract.PetEntry.TABLE_NAME, whereClause, whereClauseArgs)
-            }
-            PET_ID -> {
-                val whereClause = PetContract.PetEntry._ID + "=?"
-                val whereClauseArgs = arrayOf(ContentUris.parseId(uri).toString())
-                deleteCount = database.delete(PetContract.PetEntry.TABLE_NAME, whereClause, whereClauseArgs)
-            }
-        }
-        return deleteCount
-
-    }
-
-    /**
-     * Returns the MIME type of data for the content URI.
-     */
-    override fun getType(uri: Uri): String? {
-        when (sUriMatcher.match(uri)) {
-            PETS ->
-                return PetEntry.CONTENT_LIST_TYPE
-            PET_ID ->
-                return PetEntry.CONTENT_ITEM_TYPE
-            else ->
-                throw IllegalStateException("Unknown URI $uri with match")
         }
     }
 }
